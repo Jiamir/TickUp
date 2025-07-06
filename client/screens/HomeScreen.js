@@ -33,6 +33,34 @@ const decodeJWT = (token) => {
   }
 };
 
+// Helper function to calculate days until deadline
+const getDaysUntilDeadline = (dueDate) => {
+  const now = new Date();
+  const due = new Date(dueDate);
+  const diffTime = due - now;
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  return diffDays;
+};
+
+// Helper function to get reminder text based on deadline proximity
+const getDeadlineReminderText = (daysUntil) => {
+  if (daysUntil < 0) return "Overdue";
+  if (daysUntil === 0) return "Due Today";
+  if (daysUntil === 1) return "Due Tomorrow";
+  if (daysUntil <= 3) return `Due in ${daysUntil} days`;
+  if (daysUntil <= 7) return `Due in ${daysUntil} days`;
+  return `Due in ${daysUntil} days`;
+};
+
+// Helper function to get urgency level
+const getUrgencyLevel = (daysUntil) => {
+  if (daysUntil < 0) return "overdue";
+  if (daysUntil === 0) return "critical";
+  if (daysUntil <= 1) return "urgent";
+  if (daysUntil <= 3) return "important";
+  return "normal";
+};
+
 const HomeScreen = () => {
   const [userName, setUserName] = useState("");
   const [loading, setLoading] = useState(true);
@@ -44,6 +72,8 @@ const HomeScreen = () => {
     total: 0,
   });
   const [nearestTask, setNearestTask] = useState(null);
+  const [upcomingTasks, setUpcomingTasks] = useState([]);
+  const [reminderAlerts, setReminderAlerts] = useState([]);
 
   useEffect(() => {
     const loadHomeData = async () => {
@@ -78,10 +108,12 @@ const HomeScreen = () => {
         };
 
         const upcoming = [];
+        const alerts = [];
 
         taskData.tasks.forEach((task) => {
           const dueDate = new Date(task.due_date);
           const dueStr = task.due_date.split("T")[0];
+          const daysUntil = getDaysUntilDeadline(task.due_date);
 
           if (task.status === "Done") stats.completed += 1;
           else stats.pending += 1;
@@ -89,15 +121,36 @@ const HomeScreen = () => {
           if (dueStr === todayStr) stats.today += 1;
           if (dueDate < now && task.status !== "Done") stats.overdue += 1;
 
-          if (dueDate > now && task.status !== "Done") {
-            upcoming.push({ ...task, dueDate });
+          // Add to upcoming tasks if not completed
+          if (task.status !== "Done") {
+            upcoming.push({ 
+              ...task, 
+              dueDate, 
+              daysUntil,
+              urgencyLevel: getUrgencyLevel(daysUntil),
+              reminderText: getDeadlineReminderText(daysUntil)
+            });
+
+            // Create reminder alerts for urgent tasks
+            if (daysUntil <= 1 && daysUntil >= 0) {
+              alerts.push({
+                taskTitle: task.title,
+                reminderText: getDeadlineReminderText(daysUntil),
+                urgencyLevel: getUrgencyLevel(daysUntil)
+              });
+            }
           }
         });
 
-        const nextTask = upcoming.sort((a, b) => a.dueDate - b.dueDate)[0];
+        // Sort upcoming tasks by deadline (nearest first)
+        const sortedUpcoming = upcoming.sort((a, b) => a.dueDate - b.dueDate);
+        setUpcomingTasks(sortedUpcoming.slice(0, 5)); // Show top 5 upcoming tasks
+        
+        const nextTask = sortedUpcoming[0];
         if (nextTask) setNearestTask(nextTask);
 
         setTaskStats(stats);
+        setReminderAlerts(alerts);
       } catch (err) {
         console.error(err);
         Alert.alert("Error", "Failed to load home data. Please login again.");
@@ -147,7 +200,7 @@ const HomeScreen = () => {
       <StatusBar barStyle="dark-content" />
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <Text style={styles.heading}>Welcome, {userName.split(" ")[0]}</Text>
-        <Text style={styles.subtext}>Let’s make today productive.</Text>
+        <Text style={styles.subtext}>Let's make today productive.</Text>
 
         <View style={styles.progressCard}>
           <View style={styles.progressLabelRow}>
@@ -189,27 +242,63 @@ const HomeScreen = () => {
           </View>
         </View>
 
-        {nearestTask && (
+ {/* Reminder Alerts Section */}
+        {reminderAlerts.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Deadline Reminders</Text>
+            {reminderAlerts.map((alert, index) => (
+              <View key={index} style={[styles.reminderAlert, styles[alert.urgencyLevel]]}>
+                <Text style={styles.reminderText}>
+                  {alert.reminderText}: {alert.taskTitle}
+                </Text>
+              </View>
+            ))}
+          </View>
+        )}
+        
+        {/* Enhanced Upcoming Focus Section */}
+        {upcomingTasks.length > 0 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Upcoming Focus</Text>
-            <TaskCard
-              title={nearestTask.title}
-              description={nearestTask.description}
-              dueDate={nearestTask.due_date}
-              priority={nearestTask.priority}
-              status={nearestTask.status}
-              onEdit={() => {}}
-              onDelete={() => {}}
-            />
+            <Text style={styles.sectionSubtitle}>
+              Your next {upcomingTasks.length} tasks by deadline
+            </Text>
+            {upcomingTasks.map((task, index) => (
+              <View key={task.id} style={styles.upcomingTaskCard}>
+                <View style={styles.taskHeader}>
+                  <Text style={styles.taskTitle}>{task.title}</Text>
+                  <View style={[styles.deadlineTag, styles[task.urgencyLevel]]}>
+                    <Text style={styles.deadlineText}>
+                      {task.reminderText}
+                    </Text>
+                  </View>
+                </View>
+                {task.description && (
+                  <Text style={styles.taskDescription}>
+                    {task.description.length > 60 
+                      ? task.description.substring(0, 60) + "..." 
+                      : task.description}
+                  </Text>
+                )}
+                <View style={styles.taskMeta}>
+                  <Text style={styles.taskCategory}>
+                    {task.category || "General"}
+                  </Text>
+                  <Text style={styles.taskPriority}>
+                    {task.priority} Priority
+                  </Text>
+                </View>
+              </View>
+            ))}
           </View>
         )}
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Today’s Tip</Text>
+          <Text style={styles.sectionTitle}>Today's Tip</Text>
           <View style={styles.tipBox}>
             <Text style={styles.tipText}>
-              “Small consistent efforts lead to big results. Plan, prioritize,
-              and execute.”
+              "Small consistent efforts lead to big results. Plan, prioritize,
+              and execute."
             </Text>
           </View>
         </View>
@@ -228,12 +317,11 @@ const styles = StyleSheet.create({
     position: "absolute",
     width: 300,
     height: 450,
-    top: 30,
+    top: 0,
     right: -10,
   },
-
   scrollContent: {
-    paddingTop: 90,
+    paddingTop: 50,
     paddingHorizontal: 40,
     paddingBottom: 10,
   },
@@ -257,6 +345,13 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.heading,
     color: Colors.primary,
     marginBottom: 10,
+    marginTop:0,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    fontFamily: Fonts.subheading,
+    color: "#666",
+    marginBottom: 12,
   },
   cardsContainer: {
     flexDirection: "row",
@@ -264,6 +359,103 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     gap: 10,
   },
+  
+  // Reminder Alert Styles
+  reminderAlert: {
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 8,
+    borderLeftWidth: 4,
+  },
+  reminderText: {
+    fontSize: 14,
+    fontFamily: Fonts.subheading,
+    fontWeight: "600",
+  },
+  
+  // Urgency Level Styles
+  overdue: {
+    backgroundColor: "#ffebee",
+    borderLeftColor: "#f44336",
+  },
+  critical: {
+    backgroundColor: "#ffebee",
+    borderLeftColor: "#f44336",
+  },
+  urgent: {
+    backgroundColor: "#fff3e0",
+    borderLeftColor: "#ff9800",
+  },
+  important: {
+    backgroundColor: "#fff8e1",
+    borderLeftColor: "#ffc107",
+  },
+  normal: {
+    backgroundColor: "#e8f5e8",
+    borderLeftColor: "#4caf50",
+  },
+  
+  // Upcoming Task Card Styles
+  upcomingTaskCard: {
+    backgroundColor: "#fff",
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.05,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  taskHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
+    marginBottom: 8,
+  },
+  taskTitle: {
+    fontSize: 16,
+    fontFamily: Fonts.heading,
+    color: Colors.primary,
+    flex: 1,
+    marginRight: 12,
+  },
+  deadlineTag: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    minWidth: 80,
+    alignItems: "center",
+  },
+  deadlineText: {
+    fontSize: 12,
+    fontFamily: Fonts.subheading,
+    fontWeight: "600",
+    color: "#333",
+  },
+  taskDescription: {
+    fontSize: 14,
+    fontFamily: Fonts.subheading,
+    color: "#666",
+    marginBottom: 8,
+  },
+  taskMeta: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  taskCategory: {
+    fontSize: 12,
+    fontFamily: Fonts.subheading,
+    color: "#777",
+  },
+  taskPriority: {
+    fontSize: 12,
+    fontFamily: Fonts.subheading,
+    color: "#777",
+  },
+  
+  // Existing styles
   highlightBox: {
     backgroundColor: "#fff",
     padding: 16,
@@ -302,10 +494,9 @@ const styles = StyleSheet.create({
     fontFamily: Fonts.subheading,
     color: "#555",
   },
-
   progressContainer: {
     marginBottom: 24,
-    marginTop: 18,
+    marginTop: 0,
   },
   progressLabelRow: {
     flexDirection: "row",
@@ -334,7 +525,6 @@ const styles = StyleSheet.create({
     shadowRadius: 4,
     elevation: 3,
   },
-
   progressBarBackground: {
     height: 15,
     backgroundColor: "#eee",

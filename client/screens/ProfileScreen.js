@@ -3,7 +3,6 @@ import {
   View,
   Text,
   StyleSheet,
-  Image,
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
@@ -16,6 +15,8 @@ import { Fonts } from "../utils/fonts";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useNavigation } from "@react-navigation/native";
 import { BASE_URL } from "../utils/config";
+import { MaterialCommunityIcons } from "@expo/vector-icons";
+import { Ionicons } from "@expo/vector-icons";
 
 // Helper function to decode JWT and get payload (userId)
 const decodeJWT = (token) => {
@@ -38,7 +39,6 @@ export default function ProfileScreen() {
   const navigation = useNavigation();
 
   const [user, setUser] = useState(null); // { full_name, email }
-  const [avatar, setAvatar] = useState(null); // You can adjust to get avatar URL from backend if available
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -69,9 +69,6 @@ export default function ProfileScreen() {
         const data = await response.json();
         setUser(data.user);
 
-        // You can set avatar here if backend provides it, else fallback image
-        setAvatar("https://i.pravatar.cc/150?img=12");
-
         setLoading(false);
       } catch (error) {
         Alert.alert("Error", "Session expired or failed to load profile. Please login again.");
@@ -84,8 +81,21 @@ export default function ProfileScreen() {
   }, []);
 
   const handleLogout = async () => {
-    await AsyncStorage.removeItem("token");
-    navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+    Alert.alert(
+      "Logout",
+      "Are you sure you want to logout?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Logout",
+          style: "destructive",
+          onPress: async () => {
+            await AsyncStorage.removeItem("token");
+            navigation.reset({ index: 0, routes: [{ name: "Login" }] });
+          },
+        },
+      ]
+    );
   };
 
   if (loading) {
@@ -100,23 +110,56 @@ export default function ProfileScreen() {
     <View style={styles.wrapper}>
       <ScrollView contentContainerStyle={styles.container}>
         <Text style={styles.heading}>My Profile</Text>
+        <Text style={styles.subheading}>Manage your account and app preferences</Text>
 
         <View style={styles.profileBox}>
-          <Image source={{ uri: avatar }} style={styles.avatar} />
           <Text style={styles.name}>{user?.full_name || "Unknown User"}</Text>
           <Text style={styles.email}>{user?.email || "No email"}</Text>
         </View>
 
         <View style={styles.options}>
-          <TouchableOpacity style={styles.optionButton}>
-            <Text style={styles.optionText}>Edit Profile</Text>
+          {/* Navigation Options */}
+          <TouchableOpacity 
+            style={styles.optionButton}
+            onPress={() => navigation.navigate("Home")}
+          >
+            <Ionicons name="home" size={20} color={Colors.primary} />
+            <Text style={styles.optionText}>Go to Home</Text>
           </TouchableOpacity>
 
-          <TouchableOpacity style={styles.optionButton}>
-            <Text style={styles.optionText}>Change Password</Text>
+          <TouchableOpacity 
+            style={styles.optionButton}
+            onPress={() => navigation.navigate("Task")}
+          >
+            <MaterialCommunityIcons name="format-list-checks" size={20} color={Colors.primary} />
+            <Text style={styles.optionText}>View My Tasks</Text>
           </TouchableOpacity>
 
-          <PrimaryButton title="Logout" onPress={handleLogout} width={160} height={50} />
+          <TouchableOpacity 
+            style={styles.optionButton}
+            onPress={() => navigation.navigate("AddTask")}
+          >
+            <Ionicons name="add-circle" size={20} color={Colors.primary} />
+            <Text style={styles.optionText}>Add New Task</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity 
+            style={styles.optionButton}
+            onPress={() => navigation.navigate("Calendar")}
+          >
+            <Ionicons name="calendar" size={20} color={Colors.primary} />
+            <Text style={styles.optionText}>Calendar View</Text>
+          </TouchableOpacity>
+
+          {/* Logout Button */}
+          <View style={styles.logoutContainer}>
+            <PrimaryButton 
+              title="Logout" 
+              onPress={handleLogout} 
+              width={160} 
+              height={50} 
+            />
+          </View>
         </View>
       </ScrollView>
 
@@ -143,19 +186,32 @@ const styles = StyleSheet.create({
     fontSize: 26,
     color: Colors.primary,
     fontFamily: Fonts.heading,
+    marginBottom: 10,
+    textAlign: "center",
+  },
+  subheading: {
+    fontSize: 16,
+    color: "#666",
+    fontFamily: Fonts.subheading,
     marginBottom: 30,
     textAlign: "center",
   },
-  profileBox: {
-    alignItems: "center",
-    marginBottom: 40,
-  },
-  avatar: {
-    width: 110,
-    height: 110,
-    borderRadius: 55,
-    marginBottom: 15,
-  },
+profileBox: {
+ alignItems: "center",
+ marginBottom: 40,
+ backgroundColor: "#ffffff",
+ paddingVertical: 20,
+ paddingHorizontal: 25,
+ borderRadius: 20,
+ shadowColor: "#000",
+ shadowOffset: { width: 0, height: 4 },
+ shadowOpacity: 0.1,
+ shadowRadius: 12,
+ elevation: 8,
+ borderWidth: 1,
+ borderColor: "#f0f0f0",
+ width: "100%",
+},
   name: {
     fontSize: 22,
     fontWeight: "700",
@@ -185,11 +241,17 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 2,
     width: "100%",
-    justifyContent: "center",
+    justifyContent: "flex-start",
   },
   optionText: {
     fontSize: 16,
     color: Colors.primary,
     fontFamily: Fonts.subheading,
+    fontWeight: "600",
+    marginLeft: 12,
+  },
+  logoutContainer: {
+    marginTop: 20,
+    alignItems: "center",
   },
 });
