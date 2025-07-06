@@ -4,5 +4,5 @@ export const Colors = {
   accent: "#B0E8FD",      // Sky blue for highlights or buttons
   background: "#20272C",  // Dark background option (e.g., dark mode)
   success: "#00C853",     // Green for success or completed tasks
-  bg:"#e5f3fd",
+  bg:"#ebf1fe",
 };
