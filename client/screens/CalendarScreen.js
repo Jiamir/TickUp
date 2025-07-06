@@ -86,6 +86,42 @@ export default function CalendarScreen() {
     dayjs.utc(task.due_date).local().format("YYYY-MM-DD") === selectedDate
 );
 
+  const handleDelete = (taskId) => {
+    Alert.alert(
+      "Confirm Delete",
+      "Are you sure you want to delete this task?",
+      [
+        { text: "Cancel", style: "cancel" },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              const response = await fetch(
+                `${BASE_URL}/api/tasks/delete/${taskId}`,
+                {
+                  method: "DELETE",
+                }
+              );
+
+              if (!response.ok) throw new Error("Failed to delete task");
+
+              // Remove from state
+              setTasks((prevTasks) =>
+                prevTasks.filter((task) => task.id !== taskId)
+              );
+              Alert.alert("Deleted", "Task deleted successfully!");
+            } catch (error) {
+              console.error("Delete task error:", error);
+              Alert.alert("Error", "Failed to delete the task.");
+            }
+          },
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
 
   return (
     <View style={styles.wrapper}>
@@ -116,7 +152,8 @@ export default function CalendarScreen() {
               dueDate={task.due_date}
               priority={task.priority}
               status={task.status}
-              // ✅ No edit/delete passed
+              onEdit={() => navigation.navigate("Update", { task })}
+              onDelete={() => handleDelete(task.id)}
             />
           ))
         )}
